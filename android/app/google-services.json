@@ -1,32 +1,36 @@
 {
-  "_README": "PLACEHOLDER — Replace this file with the real google-services.json downloaded from Firebase Console. Go to https://console.firebase.google.com → your project → Project Settings → Your apps → Android app (com.skincaretrackerpro) → Download google-services.json",
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "your-project-id",
-    "storage_bucket": "your-project-id.appspot.com"
+    "project_number": "213529858076",
+    "project_id": "skincare-routine-4d8e1",
+    "storage_bucket": "skincare-routine-4d8e1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+        "mobilesdk_app_id": "1:213529858076:android:12bfadcfdeb90e9e3c4fd9",
         "android_client_info": {
-          "package_name": "com.skincaretrackerpro"
+          "package_name": "com.jagadeesh.skincaretracker"
         }
       },
       "oauth_client": [
         {
-          "client_id": "000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+          "client_id": "213529858076-8iv5ms10imo1j1mqanbv8pvlk8sh6ghn.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "REPLACE_WITH_YOUR_API_KEY"
+          "current_key": "AIzaSyBeG1OvPwlUq4QEAHY9xngo4veZV0xKGvw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "213529858076-8iv5ms10imo1j1mqanbv8pvlk8sh6ghn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -34,6 +34,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>SkincareTrackerPro uses your camera to scan your face and analyse your skin type.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SkincareTrackerPro accesses your photo library so you can choose a photo for skin analysis.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>UILaunchStoryboardName</key>

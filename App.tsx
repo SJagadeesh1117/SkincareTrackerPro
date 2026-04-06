@@ -1,26 +1,38 @@
-import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import React, { useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { PaperProvider } from 'react-native-paper';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { RootNavigator } from './src/navigation';
+import {
+  createNotificationChannel,
+  loadReminderPrefs,
+  rescheduleAll,
+} from './src/services/notificationService';
 
 function App(): React.JSX.Element {
+  useEffect(() => {
+    // Set up Android notification channel and reschedule any saved reminders
+    (async () => {
+      await createNotificationChannel();
+      const prefs = await loadReminderPrefs();
+      await rescheduleAll(prefs);
+    })();
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Skincare Tracker Pro</Text>
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PaperProvider>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+          <Toast />
+        </PaperProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: '#1D9E75',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-});
 
 export default App;

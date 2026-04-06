@@ -1,2 +1,3 @@
-// Navigation: RootNavigator, AuthNavigator, DrawerNavigator, StackNavigator
-export {};
+export { AuthNavigator } from './AuthNavigator';
+export { DrawerNavigator } from './DrawerNavigator';
+export { RootNavigator } from './RootNavigator';

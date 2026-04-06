@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── products (catalog) ───────────────────────────────────
+    // Any authenticated user can read the product catalog.
+    // Only server-side (Admin SDK / Cloud Functions) can write.
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Admin SDK only (bypasses rules)
+    }
+
+    // ── users ────────────────────────────────────────────────
+    // Each user can only read and update their own document.
+    // Cloud Functions (Admin SDK) write scanCount, latestSkinProfile, etc.
+    match /users/{userId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // ── skin_profiles ────────────────────────────────────────
+    // Scan results are written by the analyseSkine Cloud Function (Admin SDK).
+    // Users can read their own scans; no client writes.
+    match /skin_profiles/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false; // Cloud Function (Admin SDK) only
+
+      match /scans/{scanId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+    }
+
+    // ── dailyStates (routine sync) ────────────────────────────
+    // Written by the app via firestoreSync.ts (debounced writes from the owner).
+    match /users/{userId}/dailyStates/{dateKey} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── orders ───────────────────────────────────────────────
+    // Placeholder for future order management.
+    // Users can read their own orders; writes handled server-side.
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false; // Server-side only
+    }
+  }
+}

@@ -1,4 +1,4 @@
-package com.skincaretrackerpro
+package com.jagadeesh.skincaretracker
 
 import android.app.Application
 import com.facebook.react.PackageList

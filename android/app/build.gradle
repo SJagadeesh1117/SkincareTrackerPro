@@ -23,6 +23,7 @@ react {
     //   skip the bundling of the JS bundle and the assets. Default is "debug", "debugOptimized".
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
     // debuggableVariants = ["liteDebug", "liteDebugOptimized", "prodDebug", "prodDebugOptimized"]
+    debuggableVariants = [] // Bundle JS into all variants including debug
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -74,13 +75,13 @@ def enableProguardInReleaseBuilds = false
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
-    ndkVersion "26.1.10909125"
+    ndkVersion "27.2.12479018"
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.skincaretrackerpro"
+    namespace "com.jagadeesh.skincaretracker"
     defaultConfig {
-        applicationId "com.skincaretrackerpro"
+        applicationId "com.jagadeesh.skincaretracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -122,10 +123,13 @@ dependencies {
     implementation platform("com.google.firebase:firebase-bom:33.1.0")
     implementation "com.google.firebase:firebase-analytics"
     implementation "com.google.firebase:firebase-auth"
-    implementation "com.google.firebase:firebase-firestore"
+    // implementation "com.google.firebase:firebase-firestore"  // disabled: path > 260 chars on Windows
     implementation "com.google.firebase:firebase-storage"
-    implementation "com.google.firebase:firebase-messaging"
-    implementation "com.google.firebase:firebase-functions"
+    // firebase-messaging and firebase-functions native modules are disabled via
+    // react-native.config.js to avoid Windows MAX_PATH issues (path > 260 chars).
+    // Re-enable when project is at a shorter path or long-path support is on.
+    // implementation "com.google.firebase:firebase-messaging"
+    // implementation "com.google.firebase:firebase-functions"
 
     // Google Sign-In
     implementation "com.google.android.gms:play-services-auth:21.2.0"
