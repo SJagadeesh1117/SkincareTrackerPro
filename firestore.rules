@@ -28,6 +28,14 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if false;
+
+      match /routineConfig/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /dailyStates/{dateKey} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── skin_profiles ────────────────────────────────────────
@@ -43,10 +51,14 @@ service cloud.firestore {
       }
     }
 
-    // ── dailyStates (routine sync) ────────────────────────────
-    // Written by the app via firestoreSync.ts (debounced writes from the owner).
-    match /users/{userId}/dailyStates/{dateKey} {
+    // ── trackedProducts ──────────────────────────────────────
+    // Users track recommended, ordered, delivered and active products here.
+    match /trackedProducts/{userId} {
       allow read, write: if isOwner(userId);
+
+      match /items/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── orders ───────────────────────────────────────────────

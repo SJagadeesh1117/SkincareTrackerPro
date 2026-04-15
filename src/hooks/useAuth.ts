@@ -2,16 +2,31 @@ import { useState, useEffect } from 'react';
 import auth from '@react-native-firebase/auth';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export function useAuth() {
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (firebaseUser) {
         await syncUserToFirestore(firebaseUser);
+
+        // Detect first-ever login for this UID
+        const key = `user_first_login_done_${firebaseUser.uid}`;
+        const alreadyLoggedIn = await AsyncStorage.getItem(key);
+        if (!alreadyLoggedIn) {
+          setIsFirstLogin(true);
+          await AsyncStorage.setItem(key, 'true');
+        } else {
+          setIsFirstLogin(false);
+        }
+      } else {
+        setIsFirstLogin(false);
       }
+
       setUser(firebaseUser);
       setLoading(false);
     });
@@ -23,6 +38,7 @@ export function useAuth() {
     user,
     loading,
     isAuthenticated: !!user,
+    isFirstLogin,
   };
 }
 
@@ -44,10 +60,7 @@ async function syncUserToFirestore(
       provider,
     };
 
-    // Only set createdAt on first write — merge:true won't overwrite
-    // existing fields we omit, but will overwrite ones we include.
-    // So we only add createdAt when the doc doesn't exist yet.
-    if (!doc.exists) {
+    if (!doc.exists()) {
       payload.createdAt = firestore.FieldValue.serverTimestamp();
     }
 

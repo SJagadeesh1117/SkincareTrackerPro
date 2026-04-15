@@ -19,25 +19,46 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Checkbox, ProgressBar } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import DraggableFlatList, {
+import {
   ScaleDecorator,
   NestableScrollContainer,
   NestableDraggableFlatList,
 } from 'react-native-draggable-flatlist';
 import type { RenderItemParams } from 'react-native-draggable-flatlist';
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { format } from 'date-fns';
 import Toast from 'react-native-toast-message';
 // @ts-ignore
 import BackgroundTimer from 'react-native-background-timer';
 
+import { AppHeader } from '../../components/AppHeader';
 import { getTodaySections } from '../../constants/routineData';
 import type { Task, Section } from '../../constants/routineData';
+import { COLORS } from '../../constants/theme';
+import {
+  DEFAULT_ROUTINE_TASKS,
+  getRoutineSlotLabel,
+  loadRoutineConfigFromFirestore,
+  mapSlotToSections,
+} from '../../services/routineActivationService';
 import { useRoutineStore } from '../../store/routineStore';
+import { useSkinProfileStore } from '../../store/skinProfileStore';
+import { fetchLatestProfile } from '../../services/skinProfileService';
+import type {
+  HomeActivationPayload,
+  MainTabParamList,
+  TrackedProduct,
+} from '../../types';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -49,14 +70,7 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-type SectionKey = 'morning' | 'night_normal' | 'night_retinol' | 'weekly';
-
-const SECTION_LABELS: Record<SectionKey, string> = {
-  morning: 'Morning Routine',
-  night_normal: 'Night Routine (Normal)',
-  night_retinol: 'Night Routine (Retinol)',
-  weekly: 'Weekly Care',
-};
+type SectionKey = 'morning' | 'night_normal' | 'weekly';
 
 // ═════════════════════════════════════════════════════════
 // NORMAL MODE — TaskRow
@@ -65,62 +79,114 @@ interface TaskRowProps {
   task: Task;
   checked: boolean;
   onToggle: (id: string) => void;
+  highlightAnim: Animated.Value;
+  isHighlighted: boolean;
 }
 
-function TaskRow({ task, checked, onToggle }: TaskRowProps) {
+function TaskRow({
+  task,
+  checked,
+  onToggle,
+  highlightAnim,
+  isHighlighted,
+}: TaskRowProps) {
+  const isLockedPending = task.source === 'tracked' && task.isActive === false;
   const [open, setOpen] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current;
+  const expandAnim = useRef(new Animated.Value(0)).current;
+  const checkScale = useRef(new Animated.Value(1)).current;
+  const rowBackgroundColor = isHighlighted
+    ? highlightAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [COLORS.card, COLORS.primary100],
+      })
+    : COLORS.card;
+
+  const handleCheckPress = () => {
+    if (isLockedPending) return;
+    Animated.sequence([
+      Animated.spring(checkScale, { toValue: 0.85, useNativeDriver: true, speed: 30, bounciness: 0 }),
+      Animated.spring(checkScale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }),
+    ]).start();
+    onToggle(task.id);
+  };
 
   const toggleInstructions = () => {
+    if (isLockedPending) return;
     const next = !open;
     setOpen(next);
-    Animated.timing(anim, {
+    Animated.timing(expandAnim, {
       toValue: next ? 1 : 0,
-      duration: 200,
-      easing: Easing.inOut(Easing.ease),
+      duration: 250,
+      easing: Easing.out(Easing.ease),
       useNativeDriver: false,
     }).start();
   };
 
-  const maxH = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 160] });
+  const maxH = expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 160] });
 
   return (
-    <View style={styles.taskWrapper}>
-      <View style={styles.taskRow}>
-        <Checkbox
-          status={checked ? 'checked' : 'unchecked'}
-          onPress={() => onToggle(task.id)}
-          color="#1D9E75"
-        />
+    <View style={[styles.taskWrapper, isLockedPending && { opacity: 0.6 }]}>
+      <Animated.View
+        style={[styles.taskRow, { backgroundColor: rowBackgroundColor }]}>
+        {/* Checkbox */}
+        <TouchableOpacity
+          style={styles.checkboxWrap}
+          onPress={handleCheckPress}
+          disabled={isLockedPending}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+          <Animated.View
+            style={[
+              styles.checkbox,
+              checked && styles.checkboxDone,
+              isLockedPending && styles.checkboxLocked,
+              { transform: [{ scale: checkScale }] },
+            ]}>
+            {checked && (
+              <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+            )}
+            {isLockedPending && !checked && (
+              <MaterialCommunityIcons name="lock-outline" size={12} color="#A78BFA" />
+            )}
+          </Animated.View>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.taskContent}
           onPress={toggleInstructions}
-          activeOpacity={0.7}>
-          <Text style={[styles.taskName, checked && styles.taskNameDone]} numberOfLines={1}>
+          activeOpacity={isLockedPending ? 1 : 0.7}
+          disabled={isLockedPending}>
+          <Text
+            style={[
+              styles.taskName,
+              checked && styles.taskNameDone,
+              isLockedPending && styles.taskNameLocked,
+            ]}
+            numberOfLines={1}>
             {task.name}
           </Text>
           <Text style={styles.taskSubtitle} numberOfLines={1}>
-            {task.subtitle}
+            {isLockedPending && task.trackedStatus === 'ordered'
+              ? 'Ordered — will activate when delivered'
+              : isLockedPending && task.trackedStatus === 'delivered'
+                ? 'Delivered — go to My Products to activate'
+                : task.subtitle}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={toggleInstructions}
-          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-          <MaterialCommunityIcons
-            name={open ? 'chevron-up' : 'chevron-down'}
-            size={18}
-            color="#9CA3AF"
-          />
-        </TouchableOpacity>
-      </View>
+
+        {!isLockedPending && (
+          <TouchableOpacity
+            onPress={toggleInstructions}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <MaterialCommunityIcons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color="#9CA3AF"
+            />
+          </TouchableOpacity>
+        )}
+      </Animated.View>
       <Animated.View style={[styles.instructionsWrap, { maxHeight: maxH }]}>
         <View style={styles.instructionsPanel}>
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={14}
-            color="#1D9E75"
-            style={styles.infoIcon}
-          />
           <Text style={styles.instructionsText}>{task.instructions}</Text>
         </View>
       </Animated.View>
@@ -136,26 +202,43 @@ interface SectionCardProps {
   checkedTasks: Record<string, boolean>;
   onToggleTask: (id: string) => void;
   defaultOpen: boolean;
+  highlightAnim: Animated.Value;
+  highlightTaskPrefix: string | null;
 }
 
-function SectionCard({ section, checkedTasks, onToggleTask, defaultOpen }: SectionCardProps) {
+function SectionCard({
+  section,
+  checkedTasks,
+  onToggleTask,
+  defaultOpen,
+  highlightAnim,
+  highlightTaskPrefix,
+}: SectionCardProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const anim = useRef(new Animated.Value(defaultOpen ? 1 : 0)).current;
+  const expandAnim = useRef(new Animated.Value(defaultOpen ? 1 : 0)).current;
+  const chevronAnim = useRef(new Animated.Value(defaultOpen ? 1 : 0)).current;
 
   const toggle = () => {
     const next = !open;
     setOpen(next);
-    Animated.timing(anim, {
-      toValue: next ? 1 : 0,
+    const toVal = next ? 1 : 0;
+    Animated.timing(expandAnim, {
+      toValue: toVal,
       duration: 260,
       easing: Easing.inOut(Easing.ease),
       useNativeDriver: false,
     }).start();
+    Animated.timing(chevronAnim, {
+      toValue: toVal,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
   };
 
-  const maxH = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 800] });
+  const maxH = expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 800] });
+  const chevronRotate = chevronAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
   const completed = section.tasks.filter(t => checkedTasks[t.id]).length;
-  const isRetinol = section.id === 'night_retinol';
+  const isRetinol = false;
 
   return (
     <View style={styles.sectionCard}>
@@ -168,13 +251,12 @@ function SectionCard({ section, checkedTasks, onToggleTask, defaultOpen }: Secti
             </View>
           )}
         </View>
-        <Text style={styles.sectionCount}>{completed} / {section.tasks.length}</Text>
-        <MaterialCommunityIcons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color="#6B7280"
-          style={styles.sectionChevron}
-        />
+        <View style={styles.countPill}>
+          <Text style={styles.countPillText}>{completed}/{section.tasks.length}</Text>
+        </View>
+        <Animated.View style={{ transform: [{ rotate: chevronRotate }], marginLeft: 8 }}>
+          <MaterialCommunityIcons name="chevron-down" size={20} color="#9B7FD4" />
+        </Animated.View>
       </TouchableOpacity>
       <Animated.View style={{ maxHeight: maxH, overflow: 'hidden' }}>
         <View style={styles.taskList}>
@@ -185,6 +267,10 @@ function SectionCard({ section, checkedTasks, onToggleTask, defaultOpen }: Secti
                 task={task}
                 checked={!!checkedTasks[task.id]}
                 onToggle={onToggleTask}
+                highlightAnim={highlightAnim}
+                isHighlighted={
+                  !!highlightTaskPrefix && task.id.startsWith(highlightTaskPrefix)
+                }
               />
             </React.Fragment>
           ))}
@@ -275,7 +361,7 @@ function EditSectionCard({ section, onAddStep }: EditSectionCardProps) {
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const undoAnim = useRef(new Animated.Value(0)).current;
-  const isRetinol = section.id === 'night_retinol';
+  const isRetinol = false;
 
   const showUndoBanner = (pd: PendingDelete) => {
     setPendingDelete(pd);
@@ -385,7 +471,7 @@ function EditSectionCard({ section, onAddStep }: EditSectionCardProps) {
         style={styles.addStepBtn}
         activeOpacity={0.7}
         onPress={() => onAddStep(section.id)}>
-        <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#1D9E75" />
+        <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#8B5CF6" />
         <Text style={styles.addStepText}>Add step</Text>
       </TouchableOpacity>
     </View>
@@ -517,7 +603,6 @@ function AddTaskModal({ visible, initialSection, onClose, onAdd }: AddTaskModalP
                 style={styles.picker}>
                 <Picker.Item label="Morning Routine" value="morning" />
                 <Picker.Item label="Night Routine (Normal)" value="night_normal" />
-                <Picker.Item label="Night Routine (Retinol)" value="night_retinol" />
                 <Picker.Item label="Weekly Care" value="weekly" />
               </Picker>
             </View>
@@ -533,9 +618,36 @@ function AddTaskModal({ visible, initialSection, onClose, onAdd }: AddTaskModalP
 // ═════════════════════════════════════════════════════════
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<MainTabParamList, 'HomeTab'>>();
   const user = auth().currentUser;
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
   const today = format(new Date(), 'dd MMM yyyy');
+
+  // ── Skin profile (persistent across sessions) ───────────
+  const skinProfile = useSkinProfileStore(s => s.skinProfile);
+  const recommendations = useSkinProfileStore(s => s.recommendations);
+  const profileLoaded = useSkinProfileStore(s => s.profileLoaded);
+
+  // Skeleton pulse animation
+  const pulseAnim = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    if (profileLoaded) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.5, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [profileLoaded, pulseAnim]);
+
+  useEffect(() => {
+    const uid = auth().currentUser?.uid;
+    if (!uid || profileLoaded) return;
+    fetchLatestProfile(uid);
+  }, [profileLoaded]);
 
   const {
     checkedTasks, currentStreak, bestStreak, loaded, isEditMode, sectionTasks,
@@ -543,7 +655,15 @@ export function HomeScreen() {
     checkAndUpdateStreak, checkDateChange, handleForeground,
     restoreDefaults,
     addCustomTask,
+    setRoutineConfig,
   } = useRoutineStore();
+  const [pendingTrackedTasks, setPendingTrackedTasks] = useState<
+    Record<SectionKey, Task[]>
+  >({
+    morning: [],
+    night_normal: [],
+    weekly: [],
+  });
 
   // Today's sections (which sections to show based on day)
   const todayBaseSections = useMemo(() => getTodaySections(), []);
@@ -553,9 +673,12 @@ export function HomeScreen() {
     () =>
       todayBaseSections.map(s => ({
         ...s,
-        tasks: sectionTasks[s.id] ?? s.tasks,
+        tasks: [
+          ...(sectionTasks[s.id] ?? s.tasks),
+          ...(pendingTrackedTasks[s.id as SectionKey] ?? []),
+        ],
       })),
-    [todayBaseSections, sectionTasks],
+    [todayBaseSections, sectionTasks, pendingTrackedTasks],
   );
 
   const requiredTasks = useMemo(
@@ -563,23 +686,191 @@ export function HomeScreen() {
       displaySections
         .filter(s => s.id !== 'weekly')
         .flatMap(s => s.tasks)
-        .filter(t => t.isRequired),
+        .filter(t => t.isRequired && !(t.source === 'tracked' && t.isActive === false)),
     [displaySections],
   );
   const allTaskIds = useMemo(
-    () => displaySections.flatMap(s => s.tasks).map(t => t.id),
+    () =>
+      displaySections
+        .flatMap(s => s.tasks)
+        .filter(t => !(t.source === 'tracked' && t.isActive === false))
+        .map(t => t.id),
     [displaySections],
   );
   const requiredTaskIds = useMemo(() => requiredTasks.map(t => t.id), [requiredTasks]);
 
   const completedRequired = requiredTasks.filter(t => checkedTasks[t.id]).length;
   const progress = requiredTasks.length > 0 ? completedRequired / requiredTasks.length : 0;
+  const allDone = allTaskIds.length > 0 && allTaskIds.every(id => checkedTasks[id]);
+  const highlightAnim = useRef(new Animated.Value(0)).current;
+  const [highlightTaskPrefix, setHighlightTaskPrefix] = useState<string | null>(null);
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   // Modal state
   const [addModalSection, setAddModalSection] = useState<SectionKey | null>(null);
 
   // Initial load
   useEffect(() => { loadToday(); }, [loadToday]);
+
+  // Animate progress bar on change
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 600,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, progressAnim]);
+
+  const loadRoutineConfig = useCallback(async () => {
+    const uid = auth().currentUser?.uid;
+
+    if (!uid) {
+      await setRoutineConfig(DEFAULT_ROUTINE_TASKS);
+      return;
+    }
+
+    try {
+      const merged = await loadRoutineConfigFromFirestore();
+      await setRoutineConfig(merged);
+    } catch {
+      await setRoutineConfig(DEFAULT_ROUTINE_TASKS);
+    }
+  }, [setRoutineConfig]);
+
+  const loadPendingProducts = useCallback(async () => {
+    const uid = auth().currentUser?.uid;
+    if (!uid) {
+      setPendingTrackedTasks({
+        morning: [],
+        night_normal: [],
+        weekly: [],
+      });
+      return;
+    }
+
+    try {
+      const snapshot = await firestore()
+        .collection('trackedProducts')
+        .doc(uid)
+        .collection('items')
+        .where('isActive', '==', false)
+        .where('status', 'in', ['ordered', 'delivered'])
+        .get();
+
+      const sectionedTasks: Record<SectionKey, Task[]> = {
+        morning: [],
+        night_normal: [],
+        weekly: [],
+      };
+
+      snapshot.docs.forEach(doc => {
+        const product = doc.data() as TrackedProduct;
+        const subtitle =
+          product.status === 'ordered'
+            ? 'Ordered — will activate when delivered'
+            : 'Delivered — go to My Products to activate';
+
+        const sections = mapSlotToSections(product.routineSlot);
+
+        sections.forEach(section => {
+          sectionedTasks[section].push({
+            id: `pending_${product.id}_${section}`,
+            name: product.name,
+            subtitle,
+            instructions: '',
+            section,
+            isRequired: false,
+            isOptional: true,
+            stepOrder: product.stepOrder,
+            source: 'tracked',
+            isActive: false,
+            trackedStatus: product.status === 'delivered' ? 'delivered' : 'ordered',
+          });
+        });
+      });
+
+      (Object.keys(sectionedTasks) as SectionKey[]).forEach(section => {
+        sectionedTasks[section].sort((a, b) => a.stepOrder - b.stepOrder);
+      });
+
+      setPendingTrackedTasks(sectionedTasks);
+    } catch {
+      setPendingTrackedTasks({
+        morning: [],
+        night_normal: [],
+        weekly: [],
+      });
+    }
+  }, []);
+
+  const reloadRoutineData = useCallback(async () => {
+    await loadRoutineConfig();
+    await loadPendingProducts();
+  }, [loadPendingProducts, loadRoutineConfig]);
+
+  const triggerHighlight = useCallback(
+    (productId: string) => {
+      const prefix = `tracked_${productId}`;
+      setHighlightTaskPrefix(prefix);
+      highlightAnim.stopAnimation();
+      highlightAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(highlightAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.delay(1500),
+        Animated.timing(highlightAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+      ]).start(() => setHighlightTaskPrefix(null));
+    },
+    [highlightAnim],
+  );
+
+  const handleActivatedProduct = useCallback(
+    (payload: HomeActivationPayload) => {
+      Toast.show({
+        type: 'success',
+        text1: 'Routine updated',
+        text2: `${payload.productName} is now in your ${getRoutineSlotLabel(
+          payload.routineSlot,
+        ).toLowerCase()}`,
+        visibilityTime: 4000,
+      });
+      triggerHighlight(payload.productId);
+      navigation.setParams({ activatedProduct: undefined });
+    },
+    [navigation, triggerHighlight],
+  );
+
+  useEffect(() => {
+    reloadRoutineData();
+  }, [reloadRoutineData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const syncOnFocus = async () => {
+        await reloadRoutineData();
+
+        if (!cancelled && route.params?.activatedProduct) {
+          handleActivatedProduct(route.params.activatedProduct);
+        }
+      };
+
+      syncOnFocus();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [handleActivatedProduct, reloadRoutineData, route.params?.activatedProduct]),
+  );
 
   // AppState — foreground re-entry
   useEffect(() => {
@@ -596,10 +887,11 @@ export function HomeScreen() {
       }
       const uid = auth().currentUser?.uid;
       if (uid) await handleForeground(uid, requiredTaskIds);
+      await reloadRoutineData();
     };
     const sub = AppState.addEventListener('change', onStateChange);
     return () => sub.remove();
-  }, [checkDateChange, handleForeground, requiredTaskIds]);
+  }, [checkDateChange, handleForeground, reloadRoutineData, requiredTaskIds]);
 
   // Midnight timer
   useEffect(() => {
@@ -667,6 +959,7 @@ export function HomeScreen() {
   if (isEditMode) {
     return (
       <View style={styles.root}>
+        <AppHeader title="Edit Routine" showEditButton />
         <NestableScrollContainer
           style={styles.scroll}
           contentContainerStyle={[
@@ -703,6 +996,14 @@ export function HomeScreen() {
   // ── NORMAL MODE ─────────────────────────────────────────
   return (
     <View style={styles.root}>
+      {/* ── Custom home header ─── */}
+      <AppHeader
+        title=""
+        greetingText={`${getGreeting()}, ${firstName}`}
+        greetingDate={today}
+        showEditButton
+      />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -711,69 +1012,142 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}>
 
-        {/* Greeting card */}
-        <View style={styles.greetingCard}>
-          <Text style={styles.greetingText}>{getGreeting()}, {firstName}</Text>
-          <Text style={styles.dateText}>{today}</Text>
-        </View>
+        {/* Skin profile card / skeleton */}
+        {!profileLoaded ? (
+          <Animated.View style={[styles.profileSkeleton, { opacity: pulseAnim }]} />
+        ) : skinProfile && recommendations && recommendations.length > 0 ? (
+          <TouchableOpacity
+            style={styles.profileCard}
+            activeOpacity={0.85}
+            onPress={() =>
+              navigation.navigate('RecommendationsScreen', {
+                products: recommendations,
+                skinType: skinProfile.skinType,
+                scanId: skinProfile.scanId,
+              })
+            }>
+            <View style={styles.profileCardBody}>
+              <MaterialCommunityIcons
+                name="face-recognition"
+                size={22}
+                color="#A78BFA"
+                style={styles.profileCardIcon}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileCardTitle}>Your skin analysis</Text>
+                <Text style={styles.profileCardSub}>
+                  {skinProfile.skinType.charAt(0).toUpperCase() +
+                    skinProfile.skinType.slice(1)}{' '}
+                  skin
+                  {skinProfile.concerns.length > 0
+                    ? ` · ${skinProfile.concerns.length} concern${skinProfile.concerns.length > 1 ? 's' : ''}`
+                    : ''}
+                </Text>
+              </View>
+              <Text style={styles.profileCardCta}>View →</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.faceScanPromptCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'ScanTab' })}>
+            <MaterialCommunityIcons name="face-recognition" size={28} color="#A78BFA" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileCardTitle}>Start with a face scan</Text>
+              <Text style={styles.profileCardSub}>
+                Get personalised product recommendations for your skin type
+              </Text>
+            </View>
+            <Text style={styles.profileCardCta}>Scan →</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* Progress card */}
-        <View style={styles.card}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Daily progress</Text>
-            <Text style={styles.progressCount}>
-              {completedRequired} / {requiredTasks.length} steps completed
+        {/* ── Progress card ── */}
+        <View style={styles.progressCard}>
+          <Text style={styles.progressLabel}>Today's progress</Text>
+          {/* Animated bar */}
+          <View style={styles.progressTrack}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                    extrapolate: 'clamp',
+                  }),
+                },
+              ]}
+            />
+          </View>
+          <View style={styles.progressMeta}>
+            <Text style={styles.progressMetaLeft}>
+              {completedRequired} of {requiredTasks.length} steps done
+            </Text>
+            <Text style={styles.progressMetaRight}>
+              {Math.round(progress * 100)}%
             </Text>
           </View>
-          <ProgressBar
-            progress={progress}
-            color="#1D9E75"
-            style={styles.progressBar}
-          />
         </View>
 
-        {/* Streak row */}
-        <View style={[styles.card, styles.streakCard]}>
-          <Text style={styles.flameEmoji}>🔥</Text>
-          <Text style={styles.streakNumber}>{currentStreak}</Text>
-          <View style={styles.streakLabels}>
-            <Text style={styles.streakMainLabel}>Current streak</Text>
-            <Text style={styles.streakSubLabel}>days</Text>
+        {/* ── Streak cards ── */}
+        <View style={styles.streakRow}>
+          <View style={[styles.streakCard, styles.card]}>
+            <Text style={styles.streakNumber}>{currentStreak}</Text>
+            <View style={styles.streakIconRow}>
+              <MaterialCommunityIcons name="fire" size={13} color="#F59E0B" />
+              <Text style={styles.streakDays}> days</Text>
+            </View>
+            <Text style={styles.streakCardLabel}>Current streak</Text>
           </View>
-          <View style={styles.streakDivider} />
-          <View style={styles.streakBestBlock}>
-            <Text style={styles.streakBestValue}>{bestStreak}</Text>
-            <Text style={styles.streakBestLabel}>Best</Text>
+          <View style={[styles.streakCard, styles.card]}>
+            <Text style={[styles.streakNumber, { color: '#A78BFA' }]}>{bestStreak}</Text>
+            <View style={styles.streakIconRow}>
+              <MaterialCommunityIcons name="trophy-outline" size={13} color="#A78BFA" />
+              <Text style={[styles.streakDays, { color: '#A78BFA' }]}> days</Text>
+            </View>
+            <Text style={styles.streakCardLabel}>Best streak</Text>
           </View>
         </View>
 
-        {/* Section cards */}
-        {displaySections.map((section, idx) => (
-          <SectionCard
-            key={section.id}
-            section={section}
-            checkedTasks={checkedTasks}
-            onToggleTask={handleToggle}
-            defaultOpen={idx === 0}
-          />
-        ))}
+        {/* ── Section cards or all-done state ── */}
+        {allDone ? (
+          <View style={styles.allDoneWrap}>
+            <View style={styles.allDoneCircle}>
+              <MaterialCommunityIcons name="check-circle" size={48} color="#FFFFFF" />
+            </View>
+            <Text style={styles.allDoneTitle}>All done for today!</Text>
+            <Text style={styles.allDoneSub}>Great work. See you tomorrow.</Text>
+          </View>
+        ) : (
+          displaySections.map((section, idx) => (
+            <SectionCard
+              key={section.id}
+              section={section}
+              checkedTasks={checkedTasks}
+              onToggleTask={handleToggle}
+              defaultOpen={idx === 0}
+              highlightAnim={highlightAnim}
+              highlightTaskPrefix={highlightTaskPrefix}
+            />
+          ))
+        )}
       </ScrollView>
 
-      {/* Fixed bottom bar */}
-      <View style={[styles.bottomBar, { paddingBottom: bottomPad }]}>
+      {/* ── Fixed bottom bar ── */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnTeal]}
-          activeOpacity={0.8}
+          style={styles.markAllBtn}
+          activeOpacity={0.85}
           onPress={handleMarkAllDone}>
-          <MaterialCommunityIcons name="check-all" size={18} color="#1D9E75" />
-          <Text style={[styles.actionBtnText, styles.actionBtnTextTeal]}>Mark all done</Text>
+          <Text style={styles.markAllBtnText}>Mark all done</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnGrey]}
-          activeOpacity={0.8}
+          style={styles.resetBtn}
+          activeOpacity={0.85}
           onPress={handleResetDay}>
-          <MaterialCommunityIcons name="refresh" size={18} color="#6B7280" />
-          <Text style={[styles.actionBtnText, styles.actionBtnTextGrey]}>Reset day</Text>
+          <Text style={styles.resetBtnText}>Reset day</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -784,71 +1158,114 @@ export function HomeScreen() {
 // Styles
 // ─────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F9FC' },
+  root: { flex: 1, backgroundColor: '#0F0A1A' },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 12 },
 
-  // Greeting
-  greetingCard: {
-    backgroundColor: '#1D9E75',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  greetingText: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  dateText: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
-
   // Generic card
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#211640',
     borderRadius: 14,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3B2A65',
     elevation: 2,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
 
-  // Progress
-  progressHeader: {
+  // Skin profile cards
+  profileSkeleton: {
+    height: 64,
+    backgroundColor: '#2D1B6B',
+    borderRadius: 14,
+  },
+  profileCard: {
+    backgroundColor: '#211640',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#3B2A65',
+  },
+  faceScanPromptCard: {
+    backgroundColor: '#211640',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1.5,
+    borderColor: '#5B3FAF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  profileCardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  profileCardIcon: { marginRight: 2 },
+  profileCardTitle: { fontSize: 13, fontWeight: '700', color: '#C4B5FD', marginBottom: 2 },
+  profileCardSub: { fontSize: 12, color: '#9B7FD4' },
+  profileCardCta: { fontSize: 13, fontWeight: '700', color: '#A78BFA' },
+
+  // Progress card
+  progressCard: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 0,
+  },
+  progressLabel: {
+    fontSize: 11,
+    color: '#DDD6FE',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  progressMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginTop: 10,
   },
-  progressLabel: { fontSize: 14, fontWeight: '600', color: '#111' },
-  progressCount: { fontSize: 13, color: '#6B7280' },
-  progressBar: { height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' },
+  progressMetaLeft: { fontSize: 12, color: '#EDE9FE' },
+  progressMetaRight: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
 
   // Streak
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  flameEmoji: { fontSize: 36 },
-  streakNumber: { fontSize: 34, fontWeight: '800', color: '#111' },
-  streakLabels: { flex: 1 },
-  streakMainLabel: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  streakSubLabel: { fontSize: 12, color: '#9CA3AF' },
-  streakDivider: { width: 1, height: 36, backgroundColor: '#E5E7EB', marginHorizontal: 4 },
-  streakBestBlock: { alignItems: 'center', minWidth: 48 },
-  streakBestValue: { fontSize: 20, fontWeight: '700', color: '#111' },
-  streakBestLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
+  streakRow: { flexDirection: 'row', gap: 10 },
+  streakCard: { flex: 1, alignItems: 'flex-start' },
+  streakNumber: { fontSize: 30, fontWeight: '700', color: '#FFFFFF' },
+  streakIconRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  streakDays: { fontSize: 12, color: '#9B7FD4' },
+  streakCardLabel: { fontSize: 11, color: '#9B7FD4', marginTop: 4 },
 
   // Section card
   sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: '#211640',
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#3B2A65',
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    minHeight: 52,
   },
   sectionHeaderLeft: {
     flex: 1,
@@ -857,77 +1274,131 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
   },
-  sectionLabel: { fontSize: 15, fontWeight: '700', color: '#111' },
+  sectionLabel: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
   retinolBadge: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
+    backgroundColor: '#7C3AED',
+    borderRadius: 8,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
   },
-  retinolBadgeText: { fontSize: 11, fontWeight: '600', color: '#92400E' },
-  sectionCount: { fontSize: 13, color: '#6B7280', marginRight: 6 },
-  sectionChevron: { marginLeft: 2 },
+  retinolBadgeText: { fontSize: 9, fontWeight: '600', color: '#FFFFFF' },
+  countPill: {
+    backgroundColor: '#EDE9FE',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  countPillText: { fontSize: 11, fontWeight: '600', color: '#6D28D9' },
 
   // Normal task list
-  taskList: { borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  taskDivider: { height: 1, backgroundColor: '#F3F4F6', marginLeft: 56 },
+  taskList: { borderTopWidth: 1, borderTopColor: '#3B2A65' },
+  taskDivider: { height: 1, backgroundColor: '#3B2A65', marginLeft: 56 },
   taskWrapper: { overflow: 'hidden' },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingRight: 14, minHeight: 56 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingRight: 14, minHeight: 48 },
+
+  // Custom checkbox
+  checkboxWrap: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#C4B5FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxDone: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
+  },
+  checkboxLocked: {
+    borderColor: '#DDD6FE',
+    backgroundColor: '#2D1B6B',
+  },
+
   taskContent: { flex: 1, paddingRight: 8 },
-  taskName: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 1 },
-  taskNameDone: { color: '#9CA3AF', textDecorationLine: 'line-through' },
-  taskSubtitle: { fontSize: 12, color: '#9CA3AF' },
+  taskName: { fontSize: 13, fontWeight: '500', color: '#FFFFFF', marginBottom: 1 },
+  taskNameDone: { color: '#5B3FAF', textDecorationLine: 'line-through' },
+  taskNameLocked: { color: '#7C5AE0' },
+  taskSubtitle: { fontSize: 11, color: '#9B7FD4', marginTop: 2 },
+
   instructionsWrap: { overflow: 'hidden' },
   instructionsPanel: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FBF6',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#D1FAE5',
+    backgroundColor: '#1C103A',
+    marginHorizontal: 0,
+    marginBottom: 4,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#8B5CF6',
   },
-  infoIcon: { marginTop: 1 },
-  instructionsText: { flex: 1, fontSize: 13, color: '#1D6B4E', lineHeight: 19 },
+  instructionsText: { fontSize: 12, color: '#C4B5FD', lineHeight: 18 },
+
+  // All-done empty state
+  allDoneWrap: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  allDoneCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allDoneTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 16,
+  },
+  allDoneSub: {
+    fontSize: 13,
+    color: '#A78BFA',
+    marginTop: 6,
+  },
 
   // Edit mode task row
   editTaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#211640',
     paddingVertical: 12,
     paddingRight: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#3B2A65',
     gap: 8,
   },
   editTaskRowActive: {
-    backgroundColor: '#F0FBF6',
+    backgroundColor: '#2D1F52',
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 6,
   },
   dragHandle: { paddingHorizontal: 10, paddingVertical: 4 },
   editTaskContent: { flex: 1 },
-  editTaskName: { fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 1 },
-  editTaskSubtitle: { fontSize: 12, color: '#9CA3AF' },
+  editTaskName: { fontSize: 14, fontWeight: '600', color: '#FFFFFF', marginBottom: 1 },
+  editTaskSubtitle: { fontSize: 12, color: '#9B7FD4' },
   deleteBtn: { padding: 6 },
 
   // Source badge
   sourceBadge: { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 },
   sourceBadgeText: { fontSize: 10, fontWeight: '600' },
-  sourceBadgeOrdered: { backgroundColor: '#FEF3C7' },
-  sourceBadgeOrderedText: { color: '#92400E' },
-  sourceBadgeCustom: { backgroundColor: '#EFF6FF' },
-  sourceBadgeCustomText: { color: '#1D4ED8' },
+  sourceBadgeOrdered: { backgroundColor: '#422006' },
+  sourceBadgeOrderedText: { color: '#FCD34D' },
+  sourceBadgeCustom: { backgroundColor: '#1E3A5F' },
+  sourceBadgeCustomText: { color: '#93C5FD' },
 
   // Drag placeholder
   dragPlaceholder: {
     height: 56,
-    backgroundColor: '#E1F5EE',
+    backgroundColor: '#2D1B6B',
     borderRadius: 8,
     marginHorizontal: 12,
     marginVertical: 4,
@@ -938,13 +1409,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2937',
+    backgroundColor: '#1A1030',
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  undoText: { fontSize: 13, color: '#F9FAFB', flex: 1 },
+  undoText: { fontSize: 13, color: '#C4B5FD', flex: 1 },
   undoBtn: { paddingHorizontal: 12, paddingVertical: 4 },
-  undoBtnText: { fontSize: 13, fontWeight: '700', color: '#34D399' },
+  undoBtnText: { fontSize: 13, fontWeight: '700', color: '#A78BFA' },
 
   // Add step button
   addStepBtn: {
@@ -954,13 +1425,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: '#3B2A65',
   },
-  addStepText: { fontSize: 14, fontWeight: '600', color: '#1D9E75' },
+  addStepText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
 
   // Restore defaults
   restoreBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 4 },
-  restoreBtnText: { fontSize: 14, color: '#6B7280', textDecorationLine: 'underline' },
+  restoreBtnText: { fontSize: 14, color: '#9B7FD4', textDecorationLine: 'underline' },
 
   // Bottom bar
   bottomBar: {
@@ -972,67 +1443,71 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderTopColor: '#E9E4FF',
   },
-  actionBtn: {
+  markAllBtn: {
     flex: 1,
-    flexDirection: 'row',
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
   },
-  actionBtnTeal: { borderColor: '#1D9E75', backgroundColor: '#F0FBF6' },
-  actionBtnGrey: { borderColor: '#D1D5DB', backgroundColor: '#F9FAFB' },
-  actionBtnText: { fontSize: 14, fontWeight: '600' },
-  actionBtnTextTeal: { color: '#1D9E75' },
-  actionBtnTextGrey: { color: '#6B7280' },
+  markAllBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  resetBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9E4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetBtnText: { fontSize: 13, fontWeight: '600', color: '#A78BFA' },
 
   // Modal
-  modalRoot: { flex: 1, backgroundColor: '#F7F9FC' },
+  modalRoot: { flex: 1, backgroundColor: '#0F0A1A' },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: '#1A1030',
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#3B2A65',
   },
-  modalTitle: { fontSize: 17, fontWeight: '600', color: '#111' },
+  modalTitle: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
   modalCancelBtn: { paddingHorizontal: 4 },
-  modalCancelText: { fontSize: 15, color: '#6B7280' },
+  modalCancelText: { fontSize: 15, color: '#9B7FD4' },
   modalAddBtn: { paddingHorizontal: 4 },
-  modalAddText: { fontSize: 15, fontWeight: '700', color: '#1D9E75' },
+  modalAddText: { fontSize: 15, fontWeight: '700', color: '#8B5CF6' },
   modalScroll: { flex: 1 },
   modalContent: { padding: 20, gap: 20, paddingBottom: 60 },
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  formOptional: { fontWeight: '400', color: '#9CA3AF' },
+  formLabel: { fontSize: 13, fontWeight: '600', color: '#C4B5FD' },
+  formOptional: { fontWeight: '400', color: '#9B7FD4' },
   formInput: {
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: '#3B2A65',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    color: '#111',
-    backgroundColor: '#fff',
+    color: '#FFFFFF',
+    backgroundColor: '#211640',
   },
-  formInputError: { borderColor: '#EF4444' },
+  formInputError: { borderColor: '#F87171' },
   formTextArea: { minHeight: 90, paddingTop: 10 },
-  formError: { fontSize: 12, color: '#EF4444', marginTop: 2 },
+  formError: { fontSize: 12, color: '#F87171', marginTop: 2 },
   pickerWrapper: {
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: '#3B2A65',
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: '#211640',
     overflow: 'hidden',
   },
-  picker: { height: 50, color: '#111' },
+  picker: { height: 50, color: '#FFFFFF' },
 });

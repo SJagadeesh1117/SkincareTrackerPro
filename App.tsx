@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
+import { StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { PaperProvider } from 'react-native-paper';
+import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -10,6 +11,24 @@ import {
   loadReminderPrefs,
   rescheduleAll,
 } from './src/services/notificationService';
+import { COLORS } from './src/constants/theme';
+import { ThemeProvider } from './src/theme/ThemeContext';
+
+const paperTheme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: COLORS.primary,
+    primaryContainer: COLORS.primary100,
+    secondary: COLORS.primary700,
+    secondaryContainer: COLORS.primary50,
+    surface: COLORS.card,
+    background: COLORS.background,
+    onPrimary: COLORS.textOnPrimary,
+    onPrimaryContainer: COLORS.primary900,
+    outline: COLORS.border,
+  },
+};
 
 function App(): React.JSX.Element {
   useEffect(() => {
@@ -24,12 +43,15 @@ function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PaperProvider>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-          <Toast />
-        </PaperProvider>
+        <ThemeProvider>
+          <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+          <PaperProvider theme={paperTheme}>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+            <Toast />
+          </PaperProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -3,11 +3,13 @@ export interface Task {
   name: string;
   subtitle: string;
   instructions: string;
-  section: 'morning' | 'night_normal' | 'night_retinol' | 'weekly';
+  section: 'morning' | 'night_normal' | 'weekly';
   isRequired: boolean;
   isOptional: boolean;
   stepOrder: number;
-  source: 'default' | 'ordered' | 'custom';
+  source: 'default' | 'ordered' | 'custom' | 'tracked';
+  isActive?: boolean;
+  trackedStatus?: 'ordered' | 'delivered';
 }
 
 export interface Section {
@@ -108,58 +110,6 @@ export const NIGHT_NORMAL_TASKS: Task[] = [
   },
 ];
 
-// ── Night – retinol nights (Wed + Sun) (4 tasks) ──────────
-export const NIGHT_RETINOL_TASKS: Task[] = [
-  {
-    id: 'r1',
-    name: 'Cleanser',
-    subtitle: 'First step — clean canvas',
-    instructions:
-      'Wet face, apply pea-sized amount, massage 30 seconds in circular motions, rinse with lukewarm water',
-    section: 'night_retinol',
-    isRequired: true,
-    isOptional: false,
-    stepOrder: 1,
-    source: 'default',
-  },
-  {
-    id: 'r2',
-    name: 'Moisturizer',
-    subtitle: 'Buffer — thin layer before retinol',
-    instructions:
-      'Apply a thin layer of moisturizer as a buffer. Wait 5 minutes before applying retinol to reduce potential irritation',
-    section: 'night_retinol',
-    isRequired: true,
-    isOptional: false,
-    stepOrder: 2,
-    source: 'default',
-  },
-  {
-    id: 'r3',
-    name: 'Retinol',
-    subtitle: 'Use only on retinol nights',
-    instructions:
-      'Apply pea-sized amount only on completely dry skin. Avoid eye area and corners of nose and mouth. Pat gently — do not rub',
-    section: 'night_retinol',
-    isRequired: true,
-    isOptional: false,
-    stepOrder: 3,
-    source: 'default',
-  },
-  {
-    id: 'r4',
-    name: 'Moisturizer',
-    subtitle: 'Seal — thicker layer on top',
-    instructions:
-      'Apply a generous layer of moisturizer to seal in retinol and reduce irritation. This is the final step — do not add anything on top',
-    section: 'night_retinol',
-    isRequired: true,
-    isOptional: false,
-    stepOrder: 4,
-    source: 'default',
-  },
-];
-
 // ── Weekly care (3 tasks) ─────────────────────────────────
 export const WEEKLY_TASKS: Task[] = [
   {
@@ -201,16 +151,10 @@ export const WEEKLY_TASKS: Task[] = [
 ];
 
 // ── Today's sections ──────────────────────────────────────
-// Wed (3) and Sun (0) → retinol night; all other days → normal night
 export function getTodaySections(): Section[] {
-  const day = new Date().getDay();
-  const isRetinolNight = day === 3 || day === 0;
-
   return [
-    { id: 'morning', label: 'Morning Routine', tasks: MORNING_TASKS },
-    isRetinolNight
-      ? { id: 'night_retinol', label: 'Night Routine', tasks: NIGHT_RETINOL_TASKS }
-      : { id: 'night_normal', label: 'Night Routine', tasks: NIGHT_NORMAL_TASKS },
-    { id: 'weekly', label: 'Weekly Care', tasks: WEEKLY_TASKS },
+    { id: 'morning',      label: 'Morning Routine', tasks: MORNING_TASKS },
+    { id: 'night_normal', label: 'Evening Routine', tasks: NIGHT_NORMAL_TASKS },
+    { id: 'weekly',       label: 'Weekly Care',     tasks: WEEKLY_TASKS },
   ];
 }

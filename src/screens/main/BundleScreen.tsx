@@ -47,8 +47,8 @@ interface Props { navigation: NavProp; route: RouteP }
 
 // ── Constants ─────────────────────────────────────────────
 
-const TEAL = '#1D9E75';
-const BG   = '#F7F9FC';
+const PURPLE = '#8B5CF6';
+const BG     = '#FAFAFA';
 
 const TIER_COLORS: Record<ProductTier, string> = {
   best:   '#F59E0B',
@@ -269,7 +269,7 @@ export function BundleScreen({ navigation, route }: Props) {
   if (processing) {
     return (
       <SafeAreaView style={styles.processingContainer}>
-        <ActivityIndicator size="large" color={TEAL} />
+        <ActivityIndicator size="large" color={PURPLE} />
         <Text style={styles.processingText}>Processing payment…</Text>
       </SafeAreaView>
     );
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: TEAL,
+    backgroundColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   tierBadgeText:  { fontSize: 10, fontWeight: '700', color: '#fff' },
   productBrand:   { fontSize: 11, color: '#9CA3AF' },
   productMeta:    { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
-  productPrice:   { fontSize: 13, fontWeight: '700', color: TEAL },
+  productPrice:   { fontSize: 13, fontWeight: '700', color: PURPLE },
   routineSlot:    { fontSize: 11, color: '#6B7280' },
 
   // Price summary
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
   dividerLine:  { height: 1, backgroundColor: '#E5E7EB', marginVertical: 4 },
   totalRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel:   { fontSize: 15, fontWeight: '700', color: '#111' },
-  totalPrice:   { fontSize: 18, fontWeight: '800', color: TEAL },
+  totalPrice:   { fontSize: 18, fontWeight: '800', color: PURPLE },
 
   sectionDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 20 },
 
@@ -578,18 +578,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: TEAL,
+    borderColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editBtnText:  { fontSize: 15, fontWeight: '600', color: TEAL },
+  editBtnText:  { fontSize: 15, fontWeight: '600', color: PURPLE },
   orderBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: TEAL,
+    backgroundColor: PURPLE,
     paddingVertical: 14,
     borderRadius: 12,
   },

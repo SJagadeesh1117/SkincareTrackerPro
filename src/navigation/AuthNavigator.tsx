@@ -23,7 +23,7 @@ export function AuthNavigator() {
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: '#1D9E75',
+        headerTintColor: '#8B5CF6',
         headerTitleStyle: {
           fontWeight: '600',
           fontSize: 17,
@@ -37,41 +37,17 @@ export function AuthNavigator() {
               style={{ paddingHorizontal: 16, paddingVertical: 8 }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <MaterialCommunityIcons name="arrow-left" size={24} color="#1D9E75" />
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#8B5CF6" />
             </TouchableOpacity>
           ) : null,
       })}
     >
-      <Stack.Screen
-        name="Welcome"
-        component={WelcomeScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="EmailLogin"
-        component={EmailLoginScreen}
-        options={{ title: '' }}
-      />
-      <Stack.Screen
-        name="EmailRegister"
-        component={EmailRegisterScreen}
-        options={{ title: '' }}
-      />
-      <Stack.Screen
-        name="ForgotPassword"
-        component={ForgotPasswordScreen}
-        options={{ title: 'Reset password' }}
-      />
-      <Stack.Screen
-        name="PhoneAuth"
-        component={PhoneAuthScreen}
-        options={{ title: '' }}
-      />
-      <Stack.Screen
-        name="OTP"
-        component={OTPScreen}
-        options={{ title: 'Verify phone' }}
-      />
+      <Stack.Screen name="Welcome"        component={WelcomeScreen}        options={{ headerShown: false }} />
+      <Stack.Screen name="EmailLogin"     component={EmailLoginScreen}     options={{ headerShown: false }} />
+      <Stack.Screen name="EmailRegister"  component={EmailRegisterScreen}  options={{ headerShown: false }} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="PhoneAuth"      component={PhoneAuthScreen}      options={{ headerShown: false }} />
+      <Stack.Screen name="OTP"            component={OTPScreen}            options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

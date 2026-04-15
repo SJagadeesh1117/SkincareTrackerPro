@@ -13,14 +13,7 @@
  */
 module.exports = {
   dependencies: {
-    '@react-native-firebase/functions': {
-      platforms: { android: null },
-    },
-    '@react-native-firebase/firestore': {
-      platforms: { android: null },
-    },
-    '@react-native-firebase/messaging': {
-      platforms: { android: null },
-    },
+    // Long-path workaround: build from C:\stp (junction to this project).
+    // All three packages are re-enabled — paths are safe from C:\stp.
   },
 };

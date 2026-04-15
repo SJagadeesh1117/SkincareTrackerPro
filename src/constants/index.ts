@@ -1,10 +1,5 @@
 // App-wide constants: colors, fonts, spacing, routes
-export const COLORS = {
-  primary: '#1D9E75',
-  white: '#FFFFFF',
-  black: '#000000',
-  background: '#F7F9FC',
-};
+export { COLORS, FONTS, RADIUS } from './theme';
 
 export const ROUTES = {
   // Auth

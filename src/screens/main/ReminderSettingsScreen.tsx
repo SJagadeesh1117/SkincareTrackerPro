@@ -107,8 +107,8 @@ function ReminderCard({
         <Switch
           value={enabled}
           onValueChange={v => onToggle(type, v)}
-          trackColor={{ false: '#D1D5DB', true: '#6EE7C5' }}
-          thumbColor={enabled ? '#1D9E75' : '#9CA3AF'}
+          trackColor={{ false: '#D1D5DB', true: '#DDD6FE' }}
+          thumbColor={enabled ? '#8B5CF6' : '#9CA3AF'}
           disabled={!hasPermission && !enabled}
         />
       </View>
@@ -120,7 +120,7 @@ function ReminderCard({
             style={styles.timeButton}
             activeOpacity={0.7}
             onPress={() => setShowPicker(true)}>
-            <MaterialCommunityIcons name="clock-outline" size={16} color="#1D9E75" />
+            <MaterialCommunityIcons name="clock-outline" size={16} color="#6D28D9" />
             <Text style={styles.timeButtonText}>{formatTime(hour, minute)}</Text>
             <MaterialCommunityIcons name="chevron-down" size={16} color="#6B7280" />
           </TouchableOpacity>
@@ -239,7 +239,7 @@ export function ReminderSettingsScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D9E75" />
+        <ActivityIndicator size="large" color="#8B5CF6" />
       </View>
     );
   }
@@ -298,7 +298,7 @@ export function ReminderSettingsScreen() {
 
       <View style={styles.card}>
         <View style={styles.infoRow}>
-          <View style={[styles.iconCircle, { backgroundColor: '#1D9E75' }]}>
+          <View style={[styles.iconCircle, { backgroundColor: '#8B5CF6' }]}>
             <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
           </View>
           <View style={styles.cardTitles}>
@@ -429,18 +429,18 @@ const styles = StyleSheet.create({
   timeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF8',
+    backgroundColor: '#F8F5FF',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 7,
     gap: 6,
     borderWidth: 1,
-    borderColor: '#D1FAE5',
+    borderColor: '#E9E4FF',
   },
   timeButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1D9E75',
+    color: '#6D28D9',
   },
   infoRow: {
     flexDirection: 'row',

@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  StatusBar,
+  Platform,
 } from 'react-native';
-import { TextInput, Button } from 'react-native-paper';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TextInput } from 'react-native-paper';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { AuthStackParamList } from '../../types';
 import { signInWithEmail, getAuthErrorMessage } from '../../services/authService';
@@ -28,6 +32,7 @@ export function EmailLoginScreen({ navigation }: Props) {
   const [passwordError, setPasswordError] = useState('');
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const validate = () => {
     let valid = true;
@@ -64,123 +69,173 @@ export function EmailLoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Sign in to your account</Text>
+    <SafeAreaView style={styles.root} edges={[]}>
+      {/* Purple header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Sign in</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-        <View style={styles.fieldGroup}>
-          <TextInput
-            label="Email"
-            value={email}
-            onChangeText={text => {
-              setEmail(text);
-              if (emailError) setEmailError('');
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            mode="outlined"
-            outlineColor="#E0E0E0"
-            activeOutlineColor="#1D9E75"
-            error={!!emailError}
-          />
-          {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
-        </View>
+      {/* White card */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 24 }]}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <Text style={styles.heading}>Welcome back</Text>
+            <Text style={styles.subText}>Sign in to your account</Text>
 
-        <View style={styles.fieldGroup}>
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={text => {
-              setPassword(text);
-              if (passwordError) setPasswordError('');
-            }}
-            secureTextEntry={!showPassword}
-            mode="outlined"
-            outlineColor="#E0E0E0"
-            activeOutlineColor="#1D9E75"
-            error={!!passwordError}
-            right={
-              <TextInput.Icon
-                icon={showPassword ? 'eye-off' : 'eye'}
-                onPress={() => setShowPassword(v => !v)}
-                color="#888"
+            <View style={styles.fieldGroup}>
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={text => {
+                  setEmail(text);
+                  if (emailError) setEmailError('');
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                mode="outlined"
+                outlineColor="#E9E4FF"
+                activeOutlineColor="#8B5CF6"
+                error={!!emailError}
               />
-            }
-          />
-          {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+              {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={text => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError('');
+                }}
+                secureTextEntry={!showPassword}
+                mode="outlined"
+                outlineColor="#E9E4FF"
+                activeOutlineColor="#8B5CF6"
+                error={!!passwordError}
+                right={
+                  <TextInput.Icon
+                    icon={showPassword ? 'eye-off' : 'eye'}
+                    onPress={() => setShowPassword(v => !v)}
+                    color="#A78BFA"
+                  />
+                }
+              />
+              {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+            </View>
+
+            <TouchableOpacity
+              style={styles.forgotRow}
+              onPress={() => navigation.navigate('ForgotPassword')}>
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+
+            {!!serverError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{serverError}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+              onPress={handleSignIn}
+              disabled={loading}
+              activeOpacity={0.85}>
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Sign in</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.createRow}
+              onPress={() => navigation.navigate('EmailRegister')}
+              disabled={loading}>
+              <Text style={styles.newHereText}>Don't have an account?  </Text>
+              <Text style={styles.createAccountText}>Create one</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-
-        <TouchableOpacity
-          style={styles.forgotRow}
-          onPress={() => navigation.navigate('ForgotPassword')}
-        >
-          <Text style={styles.forgotText}>Forgot password?</Text>
-        </TouchableOpacity>
-
-        {!!serverError && (
-          <Text style={styles.serverError}>{serverError}</Text>
-        )}
-
-        <Button
-          mode="contained"
-          buttonColor="#1D9E75"
-          contentStyle={styles.buttonContent}
-          style={styles.signInButton}
-          onPress={handleSignIn}
-          loading={loading}
-          disabled={loading}
-        >
-          {loading ? '' : 'Sign in'}
-        </Button>
-
-        <TouchableOpacity
-          style={styles.registerRow}
-          onPress={() => navigation.navigate('EmailRegister')}
-        >
-          <Text style={styles.registerText}>
-            Don't have an account?{' '}
-            <Text style={styles.registerLink}>Create one</Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+const SB_HEIGHT = StatusBar.currentHeight ?? 24;
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#7C3AED',
   },
-  scroll: {
+  flex: {
+    flex: 1,
+  },
+  // ── Header ────────────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: SB_HEIGHT + 4,
+    paddingBottom: 8,
+  },
+  backBtn: {
+    padding: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  // ── Card ─────────────────────────────────────────────
+  card: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+  },
+  scrollContent: {
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 32,
+    paddingBottom: 8,
   },
-  title: {
-    fontSize: 26,
+  heading: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#111',
-    marginBottom: 6,
+    color: '#2E1065',
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
+  subText: {
+    fontSize: 13,
+    color: '#A78BFA',
     marginBottom: 28,
   },
+  // ── Fields ────────────────────────────────────────────
   fieldGroup: {
     marginBottom: 16,
   },
   errorText: {
-    color: '#E53935',
+    color: '#DC2626',
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,
@@ -190,32 +245,55 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forgotText: {
-    color: '#1D9E75',
-    fontSize: 14,
+    color: '#8B5CF6',
+    fontSize: 13,
     fontWeight: '500',
   },
-  buttonContent: {
-    height: 50,
-  },
-  signInButton: {
+  // ── Error banner ──────────────────────────────────────
+  errorBanner: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(239,68,68,0.08)',
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  registerRow: {
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  registerText: {
-    fontSize: 14,
-    color: '#555',
-  },
-  registerLink: {
-    color: '#1D9E75',
-    fontWeight: '600',
-  },
-  serverError: {
-    color: '#E53935',
+  errorBannerText: {
+    color: '#DC2626',
     fontSize: 13,
-    marginBottom: 12,
     textAlign: 'center',
+  },
+  // ── Buttons ───────────────────────────────────────────
+  primaryBtn: {
+    height: 52,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtnDisabled: {
+    opacity: 0.7,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  createRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  newHereText: {
+    fontSize: 13,
+    color: '#A78BFA',
+  },
+  createAccountText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8B5CF6',
+    textDecorationLine: 'underline',
   },
 });

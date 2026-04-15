@@ -3,22 +3,23 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Image,
   TextInput,
   Alert,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { signOut } from '../../services/authService';
-import type { MainDrawerParamList } from '../../types';
+import type { RootStackParamList } from '../../types';
 
-type ProfileNavProp = DrawerNavigationProp<MainDrawerParamList, 'Profile'>;
+type ProfileNavProp = StackNavigationProp<RootStackParamList>;
 
 function getInitials(name?: string | null): string {
   if (!name?.trim()) return '?';
@@ -85,6 +86,7 @@ export function ProfileScreen() {
   const initials = getInitials(displayName);
 
   return (
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -116,7 +118,7 @@ export function ProfileScreen() {
               onPress={handleSaveName}
               disabled={saving}
               style={styles.inlineBtn}>
-              <Text style={[styles.inlineBtnText, { color: '#1D9E75' }]}>
+              <Text style={[styles.inlineBtnText, { color: '#8B5CF6' }]}>
                 Save
               </Text>
             </TouchableOpacity>
@@ -153,7 +155,7 @@ export function ProfileScreen() {
           style={styles.menuRow}
           activeOpacity={0.7}
           onPress={() => navigation.navigate('ReminderSettings')}>
-          <MaterialCommunityIcons name="bell-outline" size={22} color="#333" />
+          <MaterialCommunityIcons name="bell-outline" size={22} color="#C4B5FD" />
           <Text style={styles.menuLabel}>Reminder Settings</Text>
           <MaterialCommunityIcons
             name="chevron-right"
@@ -168,13 +170,13 @@ export function ProfileScreen() {
         <TouchableOpacity
           style={styles.menuRow}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('MyOrders')}>
+          onPress={() => navigation.navigate('MyProducts')}>
           <MaterialCommunityIcons
-            name="package-variant-outline"
+            name="bottle-tonic-outline"
             size={22}
-            color="#333"
+            color="#C4B5FD"
           />
-          <Text style={styles.menuLabel}>My Orders</Text>
+          <Text style={styles.menuLabel}>My Products</Text>
           <MaterialCommunityIcons
             name="chevron-right"
             size={22}
@@ -197,13 +199,18 @@ export function ProfileScreen() {
       {/* ── App version ────────────────────────────────────────── */}
       <Text style={styles.version}>Version 1.0.0</Text>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0F0A1A',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F7F9FC',
+    backgroundColor: '#0F0A1A',
   },
   content: {
     paddingBottom: 40,
@@ -214,9 +221,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 36,
     paddingBottom: 28,
-    backgroundColor: '#fff',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#211640',
+    borderBottomWidth: 1,
+    borderBottomColor: '#3B2A65',
   },
   avatar: {
     width: 72,
@@ -228,7 +235,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#1D9E75',
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -246,7 +253,7 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111',
+    color: '#FFFFFF',
   },
   editIcon: {
     marginTop: 2,
@@ -263,7 +270,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111',
     borderBottomWidth: 1.5,
-    borderBottomColor: '#1D9E75',
+    borderBottomColor: '#8B5CF6',
     paddingVertical: 2,
     paddingHorizontal: 4,
   },
@@ -278,16 +285,16 @@ const styles = StyleSheet.create({
   contact: {
     marginTop: 6,
     fontSize: 14,
-    color: '#6B7280',
+    color: '#9B7FD4',
   },
 
   // Menu section
   menuSection: {
     marginTop: 20,
-    backgroundColor: '#fff',
-    borderTopWidth: 0.5,
-    borderBottomWidth: 0.5,
-    borderColor: '#E5E7EB',
+    backgroundColor: '#211640',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#3B2A65',
   },
   menuRow: {
     flexDirection: 'row',
@@ -299,14 +306,14 @@ const styles = StyleSheet.create({
   menuLabel: {
     flex: 1,
     fontSize: 15,
-    color: '#111',
+    color: '#FFFFFF',
   },
   chevron: {
     marginLeft: 'auto',
   },
   separator: {
-    height: 0.5,
-    backgroundColor: '#E5E7EB',
+    height: 1,
+    backgroundColor: '#3B2A65',
     marginLeft: 56,
   },
 
@@ -319,14 +326,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: '#FFF5F5',
+    borderColor: '#7F1D1D',
+    backgroundColor: '#2D0A0A',
     alignItems: 'center',
   },
   signOutText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#E53935',
+    color: '#F87171',
   },
 
   // Version
@@ -334,6 +341,6 @@ const styles = StyleSheet.create({
     marginTop: 32,
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#5B3FAF',
   },
 });

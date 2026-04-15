@@ -23,7 +23,6 @@ import { syncDailyState, mergeWithLocal } from '../services/firestoreSync';
 import {
   MORNING_TASKS,
   NIGHT_NORMAL_TASKS,
-  NIGHT_RETINOL_TASKS,
   WEEKLY_TASKS,
 } from '../constants/routineData';
 import type { Task } from '../constants/routineData';
@@ -39,12 +38,13 @@ function taskStorageKey(d: string): string {
 }
 
 const SECTION_TASKS_KEY = 'routine_section_tasks';
+const DELETED_TASK_IDS_KEY = 'routine_deleted_task_ids';
 
+// New users start with empty sections — tasks are added via products / custom steps
 const DEFAULT_SECTION_TASKS: Record<string, Task[]> = {
-  morning: [...MORNING_TASKS],
-  night_normal: [...NIGHT_NORMAL_TASKS],
-  night_retinol: [...NIGHT_RETINOL_TASKS],
-  weekly: [...WEEKLY_TASKS],
+  morning: [],
+  night_normal: [],
+  weekly: [],
 };
 
 // ── Store interface ───────────────────────────────────────
@@ -61,6 +61,8 @@ interface RoutineStore {
   isEditMode: boolean;
   /** Per-section ordered task arrays covering all 4 sections */
   sectionTasks: Record<string, Task[]>;
+  /** IDs of tasks explicitly deleted by the user — filtered out on every setRoutineConfig */
+  deletedTaskIds: string[];
 
   // ── Check actions ───────────────────────────────────
   loadToday: () => Promise<void>;
@@ -73,6 +75,7 @@ interface RoutineStore {
 
   // ── Edit mode actions ───────────────────────────────
   setEditMode: (v: boolean) => void;
+  setRoutineConfig: (sectionTasks: Record<string, Task[]>) => Promise<void>;
   reorderTasks: (sectionId: string, tasks: Task[]) => Promise<void>;
   deleteTask: (
     sectionId: string,
@@ -94,6 +97,7 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
   loaded: false,
   isEditMode: false,
   sectionTasks: DEFAULT_SECTION_TASKS,
+  deletedTaskIds: [],
 
   // ────────────────────────────────────────────────────────
   // loadToday — loads check state AND section task order
@@ -108,11 +112,26 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
       if (raw) checkedTasks = JSON.parse(raw);
     } catch { /* start fresh */ }
 
-    // Load section task order (custom order + custom tasks)
+    // Load deleted task IDs
+    let deletedTaskIds: string[] = [];
+    try {
+      const raw = await AsyncStorage.getItem(DELETED_TASK_IDS_KEY);
+      if (raw) deletedTaskIds = JSON.parse(raw);
+    } catch { /* use empty */ }
+
+    // Load section task order (custom order + custom tasks), filtered by deleted IDs
     let sectionTasks: Record<string, Task[]> = DEFAULT_SECTION_TASKS;
     try {
       const raw = await AsyncStorage.getItem(SECTION_TASKS_KEY);
-      if (raw) sectionTasks = JSON.parse(raw);
+      if (raw) {
+        const parsed: Record<string, Task[]> = JSON.parse(raw);
+        // Re-apply deleted filter in case a previous setRoutineConfig slipped through
+        const deletedSet = new Set(deletedTaskIds);
+        for (const key of Object.keys(parsed)) {
+          parsed[key] = parsed[key].filter(t => !deletedSet.has(t.id));
+        }
+        sectionTasks = parsed;
+      }
     } catch { /* use defaults */ }
 
     // Load + validate streak (break detection)
@@ -133,6 +152,7 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
     set({
       checkedTasks,
       sectionTasks,
+      deletedTaskIds,
       currentStreak: streakData.currentStreak,
       bestStreak: streakData.bestStreak,
       activeDate: today,
@@ -260,6 +280,20 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
 
   setEditMode: (v: boolean) => set({ isEditMode: v }),
 
+  // ── setRoutineConfig ────────────────────────────────────
+  setRoutineConfig: async (incoming: Record<string, Task[]>) => {
+    // Always filter out tasks the user has explicitly deleted
+    const deletedSet = new Set(get().deletedTaskIds);
+    const sectionTasks: Record<string, Task[]> = {};
+    for (const key of Object.keys(incoming)) {
+      sectionTasks[key] = incoming[key].filter(t => !deletedSet.has(t.id));
+    }
+    set({ sectionTasks });
+    try {
+      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(sectionTasks));
+    } catch { /* best-effort */ }
+  },
+
   // ── reorderTasks ─────────────────────────────────────────
   reorderTasks: async (sectionId: string, tasks: Task[]) => {
     const updated = { ...get().sectionTasks, [sectionId]: tasks };
@@ -271,16 +305,18 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
 
   // ── deleteTask ────────────────────────────────────────────
   deleteTask: async (sectionId: string, taskId: string) => {
-    const { sectionTasks } = get();
+    const { sectionTasks, deletedTaskIds } = get();
     const tasks = sectionTasks[sectionId] ?? [];
     const index = tasks.findIndex(t => t.id === taskId);
     if (index === -1) return null;
 
     const task = tasks[index];
-    const updated = { ...sectionTasks, [sectionId]: tasks.filter(t => t.id !== taskId) };
-    set({ sectionTasks: updated });
+    const updatedTasks = { ...sectionTasks, [sectionId]: tasks.filter(t => t.id !== taskId) };
+    const updatedDeleted = [...deletedTaskIds, taskId];
+    set({ sectionTasks: updatedTasks, deletedTaskIds: updatedDeleted });
     try {
-      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(updated));
+      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(updatedTasks));
+      await AsyncStorage.setItem(DELETED_TASK_IDS_KEY, JSON.stringify(updatedDeleted));
     } catch { /* best-effort */ }
 
     return { task, index };
@@ -288,13 +324,16 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
 
   // ── undoDelete ────────────────────────────────────────────
   undoDelete: async (sectionId: string, task: Task, index: number) => {
-    const { sectionTasks } = get();
+    const { sectionTasks, deletedTaskIds } = get();
     const tasks = [...(sectionTasks[sectionId] ?? [])];
     tasks.splice(index, 0, task);
-    const updated = { ...sectionTasks, [sectionId]: tasks };
-    set({ sectionTasks: updated });
+    const updatedTasks = { ...sectionTasks, [sectionId]: tasks };
+    // Remove from deleted set so future syncs can include it again
+    const updatedDeleted = deletedTaskIds.filter(id => id !== task.id);
+    set({ sectionTasks: updatedTasks, deletedTaskIds: updatedDeleted });
     try {
-      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(updated));
+      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(updatedTasks));
+      await AsyncStorage.setItem(DELETED_TASK_IDS_KEY, JSON.stringify(updatedDeleted));
     } catch { /* best-effort */ }
   },
 
@@ -324,14 +363,15 @@ export const useRoutineStore = create<RoutineStore>((set, get) => ({
     }
   },
 
-  // ── restoreDefaults ───────────────────────────────────────
+  // ── restoreDefaults — clears deleted-IDs blacklist so all added tasks are visible again
   restoreDefaults: async () => {
-    set({ sectionTasks: DEFAULT_SECTION_TASKS });
+    // We don't restore hardcoded tasks; we only clear the deleted blacklist
+    // so any tasks previously re-added via products / custom steps reappear.
+    const { sectionTasks } = get();
+    set({ deletedTaskIds: [] });
     try {
-      await AsyncStorage.setItem(
-        SECTION_TASKS_KEY,
-        JSON.stringify(DEFAULT_SECTION_TASKS),
-      );
+      await AsyncStorage.setItem(SECTION_TASKS_KEY, JSON.stringify(sectionTasks));
+      await AsyncStorage.removeItem(DELETED_TASK_IDS_KEY);
     } catch { /* best-effort */ }
   },
 

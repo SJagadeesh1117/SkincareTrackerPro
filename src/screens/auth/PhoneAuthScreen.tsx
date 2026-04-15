@@ -1,17 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
+  Modal,
+  SafeAreaView as RNSafeAreaView,
+  StyleSheet,
+  Text,
   TextInput as RNTextInput,
-  SafeAreaView,
+  TouchableOpacity,
+  View,
+  StatusBar,
+  Platform,
 } from 'react-native';
-import { TextInput, Button } from 'react-native-paper';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TextInput } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { AuthStackParamList } from '../../types';
@@ -86,6 +89,7 @@ export function PhoneAuthScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [search, setSearch] = useState('');
+  const insets = useSafeAreaInsets();
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -125,69 +129,87 @@ export function PhoneAuthScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View style={styles.inner}>
-        <Text style={styles.title}>Enter your phone number</Text>
-        <Text style={styles.subtitle}>We'll send a verification code to this number.</Text>
-
-        <Text style={styles.label}>Phone number</Text>
-        <View style={styles.phoneRow}>
-          <TouchableOpacity
-            style={styles.countryPicker}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.flagText}>{getFlagEmoji(selectedCountry.code)}</Text>
-            <Text style={styles.dialCode}>{selectedCountry.dial}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={18} color="#555" />
-          </TouchableOpacity>
-
-          <TextInput
-            value={phone}
-            onChangeText={text => {
-              setPhone(text.replace(/[^0-9]/g, ''));
-              if (phoneError) setPhoneError('');
-            }}
-            keyboardType="phone-pad"
-            mode="outlined"
-            outlineColor="#E0E0E0"
-            activeOutlineColor="#1D9E75"
-            style={styles.phoneInput}
-            placeholder="Phone number"
-            error={!!phoneError}
-          />
-        </View>
-        {!!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
-        {!!serverError && <Text style={styles.errorText}>{serverError}</Text>}
-
-        <Button
-          mode="contained"
-          buttonColor="#1D9E75"
-          contentStyle={styles.buttonContent}
-          style={styles.button}
-          onPress={handleSendOTP}
-          loading={loading}
-          disabled={loading}
-        >
-          {loading ? '' : 'Send OTP'}
-        </Button>
+    <SafeAreaView style={styles.root} edges={[]}>
+      {/* Purple header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Phone number</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
+      {/* White card */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 24 }]}>
+          <Text style={styles.heading}>Enter your number</Text>
+          <Text style={styles.subText}>We'll send a verification code to this number.</Text>
+
+          <Text style={styles.label}>Phone number</Text>
+          <View style={styles.phoneRow}>
+            <TouchableOpacity
+              style={styles.countryPicker}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.7}>
+              <Text style={styles.flagText}>{getFlagEmoji(selectedCountry.code)}</Text>
+              <Text style={styles.dialCode}>{selectedCountry.dial}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color="#A78BFA" />
+            </TouchableOpacity>
+
+            <TextInput
+              value={phone}
+              onChangeText={text => {
+                setPhone(text.replace(/[^0-9]/g, ''));
+                if (phoneError) setPhoneError('');
+              }}
+              keyboardType="phone-pad"
+              mode="outlined"
+              outlineColor="#E9E4FF"
+              activeOutlineColor="#8B5CF6"
+              style={styles.phoneInput}
+              placeholder="Phone number"
+              error={!!phoneError}
+            />
+          </View>
+
+          {!!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
+
+          {!!serverError && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{serverError}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+            onPress={handleSendOTP}
+            disabled={loading}
+            activeOpacity={0.85}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryBtnText}>Send OTP</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* Country picker modal — keep plain style, it's a full-screen overlay */}
       <Modal
         visible={modalVisible}
         animationType="slide"
-        onRequestClose={() => { setModalVisible(false); setSearch(''); }}
-      >
-        <SafeAreaView style={styles.modalContainer}>
+        onRequestClose={() => { setModalVisible(false); setSearch(''); }}>
+        <RNSafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select country</Text>
             <TouchableOpacity
               onPress={() => { setModalVisible(false); setSearch(''); }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <MaterialCommunityIcons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
@@ -214,52 +236,83 @@ export function PhoneAuthScreen({ navigation }: Props) {
                   item.code === selectedCountry.code && styles.countryItemSelected,
                 ]}
                 onPress={() => selectCountry(item)}
-                activeOpacity={0.7}
-              >
+                activeOpacity={0.7}>
                 <Text style={styles.countryFlag}>{getFlagEmoji(item.code)}</Text>
                 <Text style={styles.countryName}>{item.name}</Text>
                 <Text style={styles.countryDial}>{item.dial}</Text>
                 {item.code === selectedCountry.code && (
-                  <MaterialCommunityIcons name="check" size={18} color="#1D9E75" />
+                  <MaterialCommunityIcons name="check" size={18} color="#8B5CF6" />
                 )}
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
           />
-        </SafeAreaView>
+        </RNSafeAreaView>
       </Modal>
-    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+const SB_HEIGHT = StatusBar.currentHeight ?? 24;
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#7C3AED',
   },
-  inner: {
+  flex: {
     flex: 1,
-    padding: 24,
-    paddingTop: 32,
   },
-  title: {
-    fontSize: 26,
+  // ── Header ────────────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: SB_HEIGHT + 4,
+    paddingBottom: 8,
+  },
+  backBtn: {
+    padding: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  // ── Card ─────────────────────────────────────────────
+  card: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+  },
+  heading: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#111',
-    marginBottom: 6,
+    color: '#2E1065',
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
-    marginBottom: 28,
-    lineHeight: 22,
+  subText: {
+    fontSize: 13,
+    color: '#A78BFA',
+    marginBottom: 24,
+    lineHeight: 20,
   },
   label: {
-    fontSize: 13,
-    color: '#444',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
     marginBottom: 8,
-    fontWeight: '500',
+    letterSpacing: 0.3,
   },
+  // ── Phone row ─────────────────────────────────────────
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,7 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E9E4FF',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 14,
@@ -282,25 +335,52 @@ const styles = StyleSheet.create({
   dialCode: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#222',
+    color: '#2E1065',
   },
   phoneInput: {
     flex: 1,
     backgroundColor: '#fff',
   },
+  // ── Errors ────────────────────────────────────────────
   errorText: {
-    color: '#E53935',
+    color: '#DC2626',
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
   },
-  buttonContent: {
-    height: 50,
-  },
-  button: {
+  errorBanner: {
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(239,68,68,0.08)',
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  errorBannerText: {
+    color: '#DC2626',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  // ── Button ────────────────────────────────────────────
+  primaryBtn: {
+    height: 52,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 28,
   },
+  primaryBtnDisabled: {
+    opacity: 0.7,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // ── Country modal ─────────────────────────────────────
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -341,7 +421,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   countryItemSelected: {
-    backgroundColor: '#F0FAF6',
+    backgroundColor: '#F8F5FF',
   },
   countryFlag: {
     fontSize: 22,

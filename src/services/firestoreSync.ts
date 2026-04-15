@@ -78,7 +78,7 @@ export async function loadDailyState(
 ): Promise<string[]> {
   try {
     const doc = await dailyDocRef(uid, date).get();
-    if (doc.exists) {
+    if (doc.exists()) {
       const tasks = doc.data()?.checkedTasks;
       if (Array.isArray(tasks)) return tasks as string[];
     }

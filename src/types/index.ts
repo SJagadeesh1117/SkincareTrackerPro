@@ -1,4 +1,7 @@
-﻿export interface User {
+﻿import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+
+export interface User {
   uid: string;
   email: string;
   displayName?: string;
@@ -57,6 +60,32 @@ export interface SkinAnalysisResult {
   advice: string[];
   spfNote: string;
   disclaimer: string;
+  scanId?: string;
+  products: RecommendedProduct[];
+}
+
+export interface RecommendedProduct {
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  whyItWorks: string;
+  keyIngredients: string[];
+  routineSlot: RoutineSlot;
+  stepOrder: number;
+  amazonProductUrl: string;
+  nykaaProductUrl: string;
+  estimatedAmazonPriceINR: number;
+  estimatedNykaaPriceINR: number;
+}
+
+export interface TrackedProduct extends RecommendedProduct {
+  status: 'recommended' | 'ordered' | 'delivered' | 'active';
+  isActive: boolean;
+  addedAt: FirebaseFirestoreTypes.Timestamp | Date;
+  orderedAt: FirebaseFirestoreTypes.Timestamp | Date | null;
+  deliveredAt: FirebaseFirestoreTypes.Timestamp | Date | null;
+  activatedAt: FirebaseFirestoreTypes.Timestamp | Date | null;
 }
 
 // ── Product Catalog ───────────────────────────────────────────────────────────
@@ -64,6 +93,12 @@ export interface SkinAnalysisResult {
 export type ProductCategory = 'cleanser' | 'moisturiser' | 'sunscreen' | 'serum' | 'toner';
 export type ProductTier = 'best' | 'value' | 'budget';
 export type RoutineSlot = 'morning' | 'night' | 'both' | 'weekly';
+
+export interface HomeActivationPayload {
+  productId: string;
+  productName: string;
+  routineSlot: RoutineSlot;
+}
 
 export interface CatalogProduct {
   id: string;
@@ -101,7 +136,6 @@ export type MainDrawerParamList = {
   Home: undefined;
   FaceScan: undefined;
   MyProducts: { skinType?: SkinType } | undefined;
-  MyOrders: undefined;
   ReminderSettings: undefined;
   Profile: undefined;
 };
@@ -111,6 +145,60 @@ export type MyProductsStackParamList = {
   BundleScreen: { selectedProducts: CatalogProduct[] };
   OrderConfirmationScreen: { orderId: string };
 };
+
+export type FaceScanStackParamList = {
+  FaceScanScreen: undefined;
+  RecommendationsScreen: {
+    products?: RecommendedProduct[];
+    skinType?: string;
+    scanId?: string;
+  } | undefined;
+};
+
+export type MainTabParamList = {
+  HomeTab: { activatedProduct?: HomeActivationPayload } | undefined;
+  ScanTab: undefined;
+  ProductsTab: undefined;
+  ProfileTab: undefined;
+};
+
+export type RoutineSlotParam = 'morning' | 'evening' | 'weekly';
+
+export type RootStackParamList = {
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
+  MyProducts: undefined;
+  BundleScreen: { selectedProducts: CatalogProduct[] };
+  OrderConfirmationScreen: { orderId: string };
+  RecommendationsScreen: FaceScanStackParamList['RecommendationsScreen'];
+  ReminderSettings: undefined;
+  ProductScanScreen: { slot: RoutineSlotParam };
+  ProductConfirmScreen: {
+    brand: string;
+    product_name: string;
+    barcode: string | null;
+    imageUri: string | undefined;
+    slot: RoutineSlotParam;
+  };
+};
+
+// ── Scanned / AI-analysed product ────────────────────────────────────────────
+
+export interface ScannedProduct {
+  id: string;                                         // Firestore doc ID
+  name: string;
+  brand: string;
+  barcode: string | null;
+  category: string;
+  ingredients: string[];
+  skinType: string[];
+  usage: 'morning' | 'evening' | 'both';
+  warnings: string[];
+  description: string;
+  addedBy: 'ai_scan' | 'admin';
+  createdAt: FirebaseFirestoreTypes.Timestamp | Date;
+}
+
+export type ScannedProductSource = 'database' | 'ai_scan';
 
 // ── Order / Delivery types ────────────────────────────────────────────────────
 

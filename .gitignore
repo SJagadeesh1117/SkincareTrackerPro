@@ -2,6 +2,13 @@
 scripts/serviceAccount.json
 *firebase-adminsdk*.json
 
+# Local API key config — never commit
+src/config/openaiConfig.ts
+
+# Android compiled JS bundle (may contain secrets from compile-time env)
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/assets/index.android.bundle.map
+
 # OSX
 #
 .DS_Store

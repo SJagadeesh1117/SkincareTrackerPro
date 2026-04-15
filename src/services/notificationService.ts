@@ -37,8 +37,8 @@ export interface ReminderPrefs {
 }
 
 export const DEFAULT_PREFS: ReminderPrefs = {
-  morning: { enabled: false, hour: 7, minute: 0 },
-  night: { enabled: false, hour: 21, minute: 30 },
+  morning: { enabled: false, hour: 9, minute: 0 },
+  night: { enabled: false, hour: 21, minute: 0 },
 };
 
 // ── Permission ────────────────────────────────────────────
@@ -93,9 +93,7 @@ function isRetinolNight(): boolean {
 
 function getNotificationBody(type: ReminderType): string {
   if (type === 'morning') return 'Time for your morning skincare routine! ✨';
-  return isRetinolNight()
-    ? "Tonight's retinol night — don't skip your actives! 🌙"
-    : "Time for your evening skincare routine! 🌙";
+  return "Time for your evening skincare routine! 🌙";
 }
 
 // ── Schedule / cancel ─────────────────────────────────────

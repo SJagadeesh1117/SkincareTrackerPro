@@ -14,7 +14,7 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
 
 jest.mock('react-native-paper', () => {
   const RN = require('react-native');
-  const PaperTextInput = ({ label, value, onChangeText, right, error, testID, ...rest }: any) => (
+  const PaperTextInput = ({ label, value, onChangeText, right, error: _error, testID, ...rest }: any) => (
     <RN.View testID={`input-${label?.toLowerCase().replace(/\s/g, '-')}`}>
       <RN.TextInput
         testID={testID ?? `field-${label?.toLowerCase().replace(/\s/g, '-')}`}
@@ -31,7 +31,7 @@ jest.mock('react-native-paper', () => {
     </RN.TouchableOpacity>
   );
 
-  const Button = ({ children, onPress, loading, disabled, testID, ...rest }: any) => (
+  const Button = ({ children, onPress, loading, disabled, testID }: any) => (
     <RN.TouchableOpacity
       testID={testID ?? `btn-${String(children).replace(/\s/g, '-').toLowerCase()}`}
       onPress={onPress}

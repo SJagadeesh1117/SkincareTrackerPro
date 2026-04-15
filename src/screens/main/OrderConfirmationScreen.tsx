@@ -5,7 +5,7 @@
  * on mount, displays the order ID, and offers two navigation CTAs.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Platform,
@@ -15,27 +15,47 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import auth from '@react-native-firebase/auth';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RouteProp } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Toast from 'react-native-toast-message';
 
-import type { MyProductsStackParamList } from '../../types';
+import type { Task } from '../../constants/routineData';
+import { RoutineUpdatedOverlay } from '../../components';
+import { mapOrderToRoutine } from '../../services';
+import { useRoutineStore } from '../../store/routineStore';
+import type { RootStackParamList } from '../../types';
 
 // ── Types ─────────────────────────────────────────────────
 
-type NavProp = StackNavigationProp<MyProductsStackParamList, 'OrderConfirmationScreen'>;
-type RouteP  = RouteProp<MyProductsStackParamList, 'OrderConfirmationScreen'>;
+type NavProp = StackNavigationProp<RootStackParamList, 'OrderConfirmationScreen'>;
+type RouteP  = RouteProp<RootStackParamList, 'OrderConfirmationScreen'>;
 
 interface Props { navigation: NavProp; route: RouteP }
 
 // ── Constants ─────────────────────────────────────────────
 
-const TEAL = '#1D9E75';
+const PURPLE = '#8B5CF6';
+
+const EMPTY_ADDED_TASKS: Record<Task['section'], Task[]> = {
+  morning: [],
+  night_normal: [],
+  weekly: [],
+};
 
 // ── Component ─────────────────────────────────────────────
 
 export function OrderConfirmationScreen({ navigation, route }: Props) {
   const { orderId } = route.params;
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [addedTasksBySection, setAddedTasksBySection] =
+    useState<Record<Task['section'], Task[]>>(EMPTY_ADDED_TASKS);
+  const {
+    loadToday,
+    setEditMode,
+    setRoutineConfig,
+  } = useRoutineStore();
 
   // Spring in from scale 0 → 1
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -49,13 +69,76 @@ export function OrderConfirmationScreen({ navigation, route }: Props) {
     }).start();
   }, [scaleAnim]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncRoutine = async () => {
+      const uid = auth().currentUser?.uid;
+      if (!uid) {
+        return;
+      }
+
+      try {
+        await loadToday();
+        const currentSectionTasks = useRoutineStore.getState().sectionTasks;
+        const result = await mapOrderToRoutine({
+          uid,
+          orderId,
+          currentSectionTasks,
+        });
+
+        await setRoutineConfig(result.sectionTasks);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (result.addedTaskCount > 0) {
+          setAddedTasksBySection(result.addedTasksBySection);
+          setShowOverlay(true);
+        }
+
+        if (result.firestoreSyncFailed) {
+          Toast.show({
+            type: 'info',
+            text1: 'Routine saved locally',
+            text2: 'Cloud sync did not finish. You may need to re-add steps later.',
+            visibilityTime: 5000,
+          });
+        }
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        Toast.show({
+          type: 'error',
+          text1: 'Routine update failed',
+          text2: 'Your order was placed, but we could not map the products into your routine.',
+          visibilityTime: 5000,
+        });
+      }
+    };
+
+    syncRoutine();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [loadToday, orderId, setRoutineConfig]);
+
   const handleViewRoutine = () => {
-    // Navigate up to the drawer and then to Home
-    navigation.getParent()?.navigate('Home');
+    navigation.navigate('MainTabs', { screen: 'HomeTab' });
   };
 
-  const handleViewOrder = () => {
-    navigation.getParent()?.navigate('MyOrders');
+  const handleViewProducts = () => {
+    navigation.navigate('MainTabs', { screen: 'ProductsTab' });
+  };
+
+  const handleEditRoutine = () => {
+    setShowOverlay(false);
+    setEditMode(true);
+    navigation.navigate('MainTabs', { screen: 'HomeTab' });
   };
 
   return (
@@ -67,7 +150,7 @@ export function OrderConfirmationScreen({ navigation, route }: Props) {
           <MaterialCommunityIcons
             name="check-circle"
             size={80}
-            color={TEAL}
+            color={PURPLE}
           />
         </Animated.View>
 
@@ -96,12 +179,19 @@ export function OrderConfirmationScreen({ navigation, route }: Props) {
 
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={handleViewOrder}
+            onPress={handleViewProducts}
             activeOpacity={0.8}>
-            <Text style={styles.secondaryBtnText}>View order</Text>
+            <Text style={styles.secondaryBtnText}>View products</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      <RoutineUpdatedOverlay
+        visible={showOverlay}
+        addedTasksBySection={addedTasksBySection}
+        onEditRoutine={handleEditRoutine}
+        onClose={() => setShowOverlay(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -162,7 +252,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryBtn: {
-    backgroundColor: TEAL,
+    backgroundColor: PURPLE,
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
@@ -177,10 +267,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: TEAL,
+    borderColor: PURPLE,
   },
   secondaryBtnText: {
-    color: TEAL,
+    color: PURPLE,
     fontWeight: '700',
     fontSize: 16,
   },
